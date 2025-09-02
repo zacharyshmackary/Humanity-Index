@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Humanity Index</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui; margin: 24px; }
+    .dial { font-size: 48px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="dial" id="dial">—</div>
+  <canvas id="chart"></canvas>
+  <script>
+    async function load() {
+      const latest = await fetch("data/latest.json").then(r=>r.json());
+      document.getElementById("dial").textContent = latest.hi;
+      const series = await fetch("data/index_series.json").then(r=>r.json());
+      const ctx = document.getElementById("chart");
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: series.map(x=>x.date),
+          datasets: [{ label: "HI", data: series.map(x=>x.HI) }]
+        },
+        options: { scales: { y: { min:-100,max:100 } } }
+      });
+    }
+    load();
+  </script>
+</body>
+</html>
