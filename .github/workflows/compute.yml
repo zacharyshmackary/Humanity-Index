@@ -1,9 +1,11 @@
 name: Compute Humanity Index
 
 on:
-  schedule:
-    - cron: "30 6 * * *"   # daily at 06:30 UTC
   workflow_dispatch:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   build:
@@ -17,16 +19,12 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # gentle request so GDELT is less likely to rate-limit
-      - run: python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir data
+      - name: Run pipeline
+        run: python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir public/data
 
-      - run: |
-          mkdir -p public/data
-          cp -r data/* public/data/
-          cp -r web/* public/
+      - run: mkdir -p public
 
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
-          publish_branch: gh-pages
