@@ -26,7 +26,7 @@ jobs:
           rm -rf public
           mkdir -p public/data
           # Build data directly into the published folder
-          python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir public/data || true
+          || true
           # Copy the web files
           cp -r web/* public/
           # quick sanity check
