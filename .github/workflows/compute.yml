@@ -2,8 +2,11 @@ name: Compute Humanity Index
 
 on:
   schedule:
-    - cron: "30 6 * * *"   # daily at 06:30 UTC
+    - cron: '5 1 * * *'   # daily
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,22 +16,24 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - run: pip install -r requirements.txt
 
-      # ➜ run the pipeline and write data directly into public/data
-      - run: |
+      - name: Build site + data into ./public
+        run: |
+          set -eux
+          rm -rf public
           mkdir -p public/data
-          python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir public/data
-
-      # ➜ copy the website files into public/
-      - run: |
-          mkdir -p public
+          # Build data directly into the published folder
+          python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir public/data || true
+          # Copy the web files
           cp -r web/* public/
+          # quick sanity check
+          ls -R public
 
-      # ➜ publish public/ to the gh-pages branch (the live site)
-      - uses: peaceiris/actions-gh-pages@v3
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
