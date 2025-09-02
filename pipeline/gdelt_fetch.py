@@ -5,39 +5,38 @@ GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 def fetch_articles(days=1, maxrecords=250):
     """
-    Returns a list of dicts with keys: title, url, domain, seendate (YYYY-MM-DD)
+    Returns: list of dicts {title, url, domain, date}
+    date is YYYY-MM-DD (UTC)
     """
     params = {
-        "query": "*",               # all news
-        "mode": "ArtList",          # article list
-        "maxrecords": maxrecords,   # cap per request
+        "query": "*",
+        "mode": "ArtList",
+        "maxrecords": maxrecords,
         "format": "json",
-        "timespan": f"{days}d",     # e.g. '1d', '2d'
+        "timespan": f"{days}d",
         "sort": "datedesc"
     }
     url = f"{GDELT_DOC_API}?{urlencode(params)}"
     r = requests.get(url, timeout=30)
     r.raise_for_status()
     data = r.json()
-    arts = []
+    out = []
     for a in data.get("articles", []):
         title = (a.get("title") or "").strip()
         url = (a.get("url") or "").strip()
         domain = (a.get("domain") or "").strip().lower()
-        # seendate can be '2025-09-01T12:34:56Z' or '20250901T123456Z' depending on feed
-        seen = a.get("seendate") or a.get("date")
+        seen = a.get("seendate") or a.get("date") or ""
         date = None
         if seen:
             s = str(seen).replace("Z","").replace("T"," ")
-            try:
-                date = dt.datetime.fromisoformat(s).date().isoformat()
-            except Exception:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y%m%d %H%M%S", "%Y-%m-%d"):
                 try:
-                    date = dt.datetime.strptime(str(seen), "%Y%m%dT%H%M%S").date().isoformat()
+                    date = dt.datetime.strptime(s[:len(fmt)], fmt).date().isoformat()
+                    break
                 except Exception:
-                    date = dt.date.today().isoformat()
-        else:
+                    pass
+        if not date:
             date = dt.date.today().isoformat()
         if title and url and domain:
-            arts.append({"title": title, "url": url, "domain": domain, "date": date})
-    return arts
+            out.append({"title": title, "url": url, "domain": domain, "date": date})
+    return out
