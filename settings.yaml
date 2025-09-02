@@ -1,8 +1,8 @@
 alpha: 0.8
 
 # Bias handling
-bias_threshold: 0.85         # when one bias bin dominates coverage
-bias_lambda: 0.6             # smooth penalty strength (0..1, higher = stronger penalty)
+bias_threshold: 0.85       # dominance threshold for a single bias bin
+bias_lambda: 0.6           # smooth penalty strength (0..1, higher = stronger penalty)
 
 # Component weights (sum ~ 1.0)
 components:
@@ -17,6 +17,5 @@ cluster:
   max_clusters_per_day: 150
 
 history:
-  # if you later feed multiple days, you can enable rolling stats in model.py
   min_days_for_stats: 14
-  rolling_days: 0   # 0 = off (use all available); set 90 to use a 90-day rolling window
+  rolling_days: 0        # 0 = use all history; set to 90 later for rolling window
