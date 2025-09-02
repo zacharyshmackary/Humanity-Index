@@ -18,7 +18,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       # Fetch and compute last 2 days, keep records modest to avoid rate limits
-      - run: python -m pipeline.pipeline --days 2 --maxrecords 150 --output-dir data
+    - run: python -m pipeline.pipeline --days 2 --maxrecords 150 --output-dir data
 
       - run: |
           mkdir -p public/data
