@@ -2,7 +2,6 @@ import json, argparse, pandas as pd
 from collections import Counter
 from pathlib import Path
 
-from .model import Model
 from .gdelt_fetch import fetch_articles
 from .cluster import cluster_titles
 from .categorize import categorize
@@ -26,21 +25,25 @@ def load_bias_map(path="data/bias_ratings.csv"):
 
 
 def cluster_summary(cluster, bias_map):
-    # representative = most common title
+    # representative = most common title in the cluster
     titles = [c.get("title", "Untitled") for c in cluster]
     rep_title = Counter(titles).most_common(1)[0][0]
     rep = next((c for c in cluster if c.get("title") == rep_title), cluster[0])
 
-    sign = sum([c.get("sign", 0) for c in cluster]) / len(cluster)
-    magnitude = sum([c.get("magnitude", 0) for c in cluster]) / len(cluster)
-    reliability = sum(
-        [bias_map.get(c.get("source", ""), ("center", 0.8))[1] for c in cluster]
-    ) / len(cluster)
-    bias_concentration = max(
-        Counter(
-            [bias_map.get(c.get("source", ""), ("center", 0.8))[0] for c in cluster]
-        ).values()
-    ) / len(cluster)
+    sign = sum(c.get("sign", 0) for c in cluster) / len(cluster)
+    magnitude = sum(c.get("magnitude", 0) for c in cluster) / len(cluster)
+    reliability = (
+        sum(bias_map.get(c.get("source", ""), ("center", 0.8))[1] for c in cluster)
+        / len(cluster)
+    )
+    bias_concentration = (
+        max(
+            Counter(
+                bias_map.get(c.get("source", ""), ("center", 0.8))[0] for c in cluster
+            ).values()
+        )
+        / len(cluster)
+    )
 
     return {
         "date": rep.get("date", ""),
@@ -54,7 +57,7 @@ def cluster_summary(cluster, bias_map):
 
 
 def compute_index(clusters):
-    # Weighted index = Σ(sign × magnitude × reliability) / N
+    # Weighted index = average of sign*magnitude*reliability across clusters
     if not clusters:
         return 0
     values = [
@@ -67,30 +70,36 @@ def compute_index(clusters):
 def main(args):
     bias_map = load_bias_map()
 
-    # fetch articles
+    # 1) fetch articles
     arts = fetch_articles(args.days, args.maxrecords)
     print("DEBUG: fetched articles:", len(arts))
 
-    # cluster them
-    clusters = cluster_titles([a["title"] for a in arts])
+    # 2) cluster by title similarity
+    clusters = cluster_titles([a.get("title", "") for a in arts])
     print("DEBUG: Clusters:", len(clusters))
 
-    # categorize (optional)
+    # 3) categorize into components A..E (optional bucketing)
     categorized = categorize(clusters)
 
-    # build cluster summaries
+    # 4) summarize each cluster
     summaries = [cluster_summary(c, bias_map) for c in categorized]
 
-    # compute Humanity Index
+    # 5) compute Humanity Index
     index_value = compute_index(summaries)
 
-    # prepare outputs
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    with open(Path(args.output_dir) / "clusters.json", "w", encoding="utf-8") as f:
+    # 6) write outputs used by the website
+    out = Path(args.output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    with open(out / "clusters.json", "w", encoding="utf-8") as f:
         json.dump(summaries, f, indent=2)
 
-    with open(Path(args.output_dir) / "latest.json", "w", encoding="utf-8") as f:
-        json.dump({"date": pd.Timestamp.today().strftime("%Y-%m-%d"), "value": index_value}, f)
+    with open(out / "latest.json", "w", encoding="utf-8") as f:
+        json.dump(
+            {"date": pd.Timestamp.today().strftime("%Y-%m-%d"), "value": index_value},
+            f,
+            indent=2,
+        )
 
     print("Wrote data")
 
