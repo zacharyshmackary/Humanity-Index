@@ -1,14 +1,22 @@
 alpha: 0.8
-bias_threshold: 0.85
-bias_penalty: 0.9
+
+# Bias handling
+bias_threshold: 0.85         # when one bias bin dominates coverage
+bias_lambda: 0.6             # smooth penalty strength (0..1, higher = stronger penalty)
+
+# Component weights (sum ~ 1.0)
 components:
-  A: 0.40
-  B: 0.25
-  C: 0.15
-  D: 0.10
-  E: 0.10
+  A: 0.40   # conflict/war/violence (−)
+  B: 0.25   # cooperation/aid/peace (+)
+  C: 0.15   # disasters/crises (−)
+  D: 0.10   # civics/rights/rule-of-law (+)
+  E: 0.10   # science/medicine/“good news” (+)
+
 cluster:
   cosine_threshold: 0.28
   max_clusters_per_day: 150
+
 history:
+  # if you later feed multiple days, you can enable rolling stats in model.py
   min_days_for_stats: 14
+  rolling_days: 0   # 0 = off (use all available); set 90 to use a 90-day rolling window
