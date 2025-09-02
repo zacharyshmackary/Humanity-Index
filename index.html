@@ -6,7 +6,7 @@
   <title>Humanity Index</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 20px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; }
     h1 { margin: 0 0 14px 0; }
     #headline { color: #555; margin: 0 0 12px 0; }
     .dial { font-size: 50px; font-weight: 800; margin: 0 0 20px 0; }
@@ -36,8 +36,10 @@ async function load() {
   const latest = await latestResp.json();
   const series = await seriesResp.json();
 
-  const last = series[series.length - 1]?.HI ?? 0;
-  const prev = series[series.length - 2]?.HI ?? 0;
+  // accept either "HI" or "hi" everywhere
+  const val = (latest.HI ?? latest.hi ?? 0);
+  const last = (series[series.length - 1]?.HI ?? series[series.length - 1]?.hi ?? 0);
+  const prev = (series[series.length - 2]?.HI ?? series[series.length - 2]?.hi ?? 0);
   const delta = last - prev;
   const dir = delta > 0 ? "↑ better" : (delta < 0 ? "↓ worse" : "→ unchanged");
 
@@ -45,14 +47,13 @@ async function load() {
     `Last updated ${latest.date} · Change vs yesterday: ${delta} (${dir})`;
 
   const dial = document.getElementById("dial");
-  dial.textContent = latest.HI ?? "--";
-  dial.style.color = latest.HI > 0 ? "#138a36" : (latest.HI < 0 ? "#c62828" : "#222");
+  dial.textContent = Number.isFinite(val) ? val : "--";
+  dial.style.color = val > 0 ? "#138a36" : (val < 0 ? "#c62828" : "#222");
 
   const labels = series.map(x => x.date);
-  const values = series.map(x => x.HI);
-  const ctx = document.getElementById("hiChart");
+  const values = series.map(x => (x.HI ?? x.hi ?? 0));
 
-  new Chart(ctx, {
+  new Chart(document.getElementById("hiChart"), {
     type: "line",
     data: {
       labels,
@@ -71,10 +72,7 @@ async function load() {
         y: { min: -100, max: 100, grid: { color: "#eee" } },
         x: { grid: { color: "#f6f6f6" } }
       },
-      plugins: {
-        legend: { display: true },
-        tooltip: { enabled: true }
-      }
+      plugins: { legend: { display: true }, tooltip: { enabled: true } }
     }
   });
 }
