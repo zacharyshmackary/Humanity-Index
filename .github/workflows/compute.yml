@@ -17,7 +17,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: python -m pipeline.pipeline --days 2 --maxrecords 150 --output-dir data
+      - run: python -m pipeline.pipeline --days 1 --maxrecords 60 --output-dir data
 
       - run: |
           mkdir -p public/data
