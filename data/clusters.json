@@ -6,9 +6,6 @@
     "magnitude": 0.3,
     "reliability": 0.95,
     "bias_max_share": 1.0,
-    "title": "fallback civics",
-    "domains": {
-      "apnews.com": 1
-    }
+    "title": "fallback civics story"
   }
 ]
