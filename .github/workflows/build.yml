@@ -1,0 +1,40 @@
+name: Compute Humanity Index
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # runs daily at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        run: |
+          python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir public/data
+
+      - name: Ensure data directory exists
+        run: mkdir -p public/data
+
+      - name: Move generated files
+        run: |
+          if [ -d "data" ]; then
+            cp -r data/* public/data/ || true
+          fi
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
