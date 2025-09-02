@@ -16,34 +16,36 @@ class HIModel:
         excess = max(0.0, float(bias_max_share) - self.bias_threshold)
         denom = max(1e-6, 1.0 - self.bias_threshold)
         p = 1.0 - self.bias_lambda * excess / denom
-        return float(np.clip(p, 0.5, 1.0))  # never below 0.5 for stability
+        return float(np.clip(p, 0.5, 1.0))  # never below 0.5
 
     def compute(self, df):
         df = df.copy()
 
-        # penalties and per-cluster deltas
         df["b"] = df["bias_max_share"].apply(self._bias_penalty)
         df["delta"] = df["sign"] * df["magnitude"] * df["reliability"] * df["b"]
 
-        # aggregate daily by component (missing comps -> 0)
         comp = df.groupby(["date", "component"])["delta"].sum().unstack(fill_value=0.0).sort_index()
 
-        # z-score normalization
-        if self.rolling_days and len(comp) >= self.min_days_for_stats:
-            mu = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).mean().shift(1)
-            sigma = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).std().shift(1).replace(0, 1e-6)
-            z = (comp - mu).div(sigma).fillna(0.0)
+        # ----- normalization / scoring -----
+        w = pd.Series(self.weights).reindex(comp.columns, fill_value=0.0)
+
+        # Small-history fallback (avoid zero when only 1–2 days exist)
+        if comp.shape[0] < 3:
+            Z = (comp * w).sum(axis=1)
+            scale = max(1.0, float(comp.abs().sum(axis=1).median() or 1.0))
+            HI = (100 * np.tanh(self.alpha * Z / scale)).round().astype(int)
         else:
-            mu = comp.mean()
-            sigma = comp.std().replace(0, 1e-6)
-            z = (comp - mu) / sigma
+            if self.rolling_days:
+                mu = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).mean().shift(1)
+                sigma = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).std().shift(1).replace(0, 1e-6)
+                z = (comp - mu).div(sigma).fillna(0.0)
+            else:
+                mu = comp.mean()
+                sigma = comp.std().replace(0, 1e-6)
+                z = (comp - mu) / sigma
 
-        # align weights to what's present
-        w = pd.Series(self.weights)
-        w = w.reindex(z.columns, fill_value=0.0)
-
-        Z = (z * w).sum(axis=1)
-        HI = (100 * np.tanh(self.alpha * Z)).round().astype(int)
+            Z = (z * w).sum(axis=1)
+            HI = (100 * np.tanh(self.alpha * Z)).round().astype(int)
 
         out = []
         for d, h in HI.items():
