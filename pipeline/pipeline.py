@@ -1,53 +1,108 @@
-# pipeline/cluster.py
+# pipeline/pipeline.py
+import json
+import argparse
+import pandas as pd
+from collections import defaultdict
+from pathlib import Path
 
-"""
-Simple title-based clustering.
-
-Input:  a list of article dicts, each at least with {"title": "...", "domain": "...", ...}
-Output: a list of clusters, where each cluster is a list of the original article dicts.
-
-Clustering is greedy: the first title in a cluster is the reference; a new title joins the
-first cluster whose reference passes a similarity threshold; otherwise it starts a new cluster.
-"""
-
-from difflib import SequenceMatcher
+from model import HIModel
+from gdelt_fetch import fetch_articles
+from categorize import categorize
+from cluster import cluster_titles
 
 
-def _similar(a: str, b: str) -> float:
-    return SequenceMatcher(None, a, b).ratio()
-
-
-def cluster_titles(items, threshold: float = 0.70):
+def build_clusters(articles):
     """
-    Group *dict* items by title similarity.
-
-    - items: iterable of dicts; each should have a "title" key.
-    - threshold: similarity (0..1) to join an existing cluster.
-
-    Returns: List[List[dict]]  (each inner list is a cluster of the original dicts)
+    Make one representative cluster per component (A..E).
+    Each cluster dict contains: date, component, sign, magnitude,
+    reliability, bias_max_share, title.
     """
-    clusters: list[list[dict]] = []
+    buckets = defaultdict(list)
+    for a in articles:
+        comp = a.get("component") or categorize(a.get("title", ""))
+        a = dict(a)  # copy
+        a["component"] = comp
+        # ensure required keys exist
+        a.setdefault("sign", 1)
+        a.setdefault("magnitude", 0.6)
+        a.setdefault("reliability", float(a.get("reliability", 0.9)))
+        a.setdefault("bias_max_share", 1.0)
+        a.setdefault("date", a.get("date"))
+        buckets[comp].append(a)
 
-    for it in items:
-        # be defensive: accept dicts only, skip empties
-        if not isinstance(it, dict):
-            # coerce into a dict with best-effort title
-            it = {"title": str(it)}
-        title = it.get("title") or ""
-        if not title:
-            # if there is no title, skip—can't cluster meaningfully
+    clusters = []
+    for comp, items in buckets.items():
+        if not items:
             continue
-
-        placed = False
-        for cluster in clusters:
-            # compare to the first item's title in the cluster
-            anchor_title = cluster[0].get("title", "")
-            if _similar(title, anchor_title) >= threshold:
-                cluster.append(it)
-                placed = True
-                break
-
-        if not placed:
-            clusters.append([it])
-
+        # aggregate sign by majority
+        s = 1 if sum(x.get("sign", 1) for x in items) >= 0 else -1
+        # simple aggregates
+        mag = sum(x.get("magnitude", 0.6) for x in items) / len(items)
+        rel = sum(float(x.get("reliability", 0.9)) for x in items) / len(items)
+        bias = max(float(x.get("bias_max_share", 1.0)) for x in items)
+        date = items[-1].get("date")
+        titles = cluster_titles(items)
+        title = titles[0] if titles else ""
+        clusters.append({
+            "date": date,
+            "component": comp,
+            "sign": int(s),
+            "magnitude": float(mag),
+            "reliability": float(rel),
+            "bias_max_share": float(bias),
+            "title": title,
+        })
+    # keep at most A..E in stable order
+    order = ["A", "B", "C", "D", "E"]
+    clusters.sort(key=lambda c: order.index(c["component"]) if c["component"] in order else 99)
     return clusters
+
+
+def run(output_dir="public/data", days=1, maxrecords=30):
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # 1) Fetch articles (real or fallback inside fetch_articles)
+    articles = fetch_articles(days=days, maxrecords=maxrecords)
+
+    # 2) Build clusters for transparency
+    clusters = build_clusters(articles)
+
+    # 3) Build DataFrame for the model
+    rows = []
+    for c in clusters:
+        rows.append({
+            "date": c["date"],
+            "component": c["component"],
+            "sign": c["sign"],
+            "magnitude": c["magnitude"],
+            "reliability": c["reliability"],
+            "bias_max_share": c["bias_max_share"],
+        })
+    df = pd.DataFrame(rows)
+
+    # 4) Compute HI time series
+    hi_series = HIModel().compute(df)  # list of {"date": "...", "HI": int}
+
+    # 5) Write files the site expects
+    # latest.json with lowercase "hi"
+    latest_obj = hi_series[-1] if hi_series else {"date": None, "HI": 0}
+    latest = {"date": latest_obj["date"], "hi": int(latest_obj["HI"])}
+    with open(f"{output_dir}/latest.json", "w") as f:
+        json.dump(latest, f, indent=2)
+
+    with open(f"{output_dir}/index_series.json", "w") as f:
+        json.dump(hi_series, f, indent=2)
+
+    with open(f"{output_dir}/clusters.json", "w") as f:
+        json.dump(clusters, f, indent=2)
+
+    print("Wrote data")
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--output-dir", default="public/data")
+    ap.add_argument("--days", type=int, default=1)
+    ap.add_argument("--maxrecords", type=int, default=30)
+    args = ap.parse_args()
+    run(output_dir=args.output_dir, days=args.days, maxrecords=args.maxrecords)
