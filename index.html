@@ -1,40 +1,48 @@
 <body>
-  <h1 style="margin:0 0 6px 0;">Humanity Index</h1>
-  <div id="meta" style="color:#666;margin:0 0 18px 0;">Loading…</div>
-  <div class="dial" id="dial">—</div>
-  <canvas id="chart"></canvas>
+  <h1>Humanity Index</h1>
+  <p id="headline"></p>
+  <h2>Trend Over Time</h2>
+  <canvas id="hiChart" width="400" height="200"></canvas>
 
   <script>
-    async function load() {
-      const latest = await fetch("data/latest.json").then(r=>r.json());
-      const series = await fetch("data/index_series.json").then(r=>r.json());
+    async function loadData() {
+      const latestResp = await fetch("data/latest.json");
+      const seriesResp = await fetch("data/index_series.json");
+      const latest = await latestResp.json();
+      const series = await seriesResp.json();
 
-      // Last updated + delta vs yesterday
-      const last = series[series.length-1]?.HI ?? 0;
-      const prev = series[series.length-2]?.HI ?? 0;
-      const delta = last - prev;
-      const dir = delta > 0 ? "↑ better" : (delta < 0 ? "↓ worse" : "→ unchanged");
-      document.getElementById("meta").textContent =
-        `Last updated ${latest.date} • Change vs yesterday: ${delta} (${dir})`;
+      // Headline section
+      const headline = document.getElementById("headline");
+      const today = latest.hi;
+      const yesterday = series[series.length - 2]?.HI ?? 0;
+      const diff = today - yesterday;
+      const arrow = diff >= 0 ? "↑ better" : "↓ worse";
+      headline.textContent = `Last updated ${latest.date} • Change vs yesterday: ${diff} (${arrow})`;
 
-      // Big number
-      document.getElementById("dial").textContent = latest.hi;
-
-      // Line chart
-      const labels = series.map(x=>x.date);
-      const values = series.map(x=>x.HI);
-      const ctx = document.getElementById("chart");
+      // Chart section
+      const ctx = document.getElementById("hiChart").getContext("2d");
       new Chart(ctx, {
-        type: 'line',
-        data: { labels, datasets: [{ label: "HI", data: values, tension: 0.2 }] },
+        type: "line",
+        data: {
+          labels: series.map(d => d.date),
+          datasets: [{
+            label: "HI",
+            data: series.map(d => d.HI),
+            borderColor: "blue",
+            fill: false
+          }]
+        },
         options: {
-          responsive: true,
-          animation: false,
-          scales: { y: { min: -100, max: 100 } },
-          plugins: { legend: { display: true }, tooltip: { enabled: true } }
+          scales: {
+            y: {
+              beginAtZero: false,
+              min: -100,
+              max: 100
+            }
+          }
         }
       });
     }
-    load();
+    loadData();
   </script>
 </body>
