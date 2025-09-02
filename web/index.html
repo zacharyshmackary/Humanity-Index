@@ -2,80 +2,86 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Humanity Index</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 20px; }
-    h1 { margin: 0 0 6px 0; }
-    #headline { color: #555; margin: 0 0 16px 0; }
-    .dial { font-size: 56px; font-weight: 800; margin: 0 0 12px 0; }
-    #chartwrap { max-width: 900px; }
+    body { font-family: system-ui, sans-serif; margin: 20px; }
+    h1 { margin: 0 0 14px 0; }
+    #headline { color: #555; margin: 0 0 12px 0; }
+    .dial { font-size: 50px; font-weight: 800; margin: 0 0 20px 0; }
+    #chartwrap { max-width: 900px }
     canvas { width: 100%; height: 360px; }
-    a { color: #1976d2; text-decoration: none; }
   </style>
 </head>
 <body>
   <h1>Humanity Index</h1>
-  <p id="headline">Loading…</p>
-  <div class="dial" id="dial">—</div>
+  <p id="headline">Loading...</p>
+  <div class="dial" id="dial">--</div>
 
   <h2>Trend Over Time</h2>
   <div id="chartwrap">
     <canvas id="hiChart"></canvas>
   </div>
 
-  <p style="margin-top:20px">
-    <a href="transparency.html">Transparency (today’s clusters)</a>
-  </p>
+  <p><a href="transparency.html">Transparency (today’s clusters)</a></p>
 
-  <script>
-    async function load() {
-      const bust = `?v=${Date.now()}`;
-      const [latestResp, seriesResp] = await Promise.all([
-        fetch("data/latest.json" + bust),
-        fetch("data/index_series.json" + bust),
-      ]);
-      const latest = await latestResp.json();
-      const series = await seriesResp.json();
+<script>
+async function load() {
+  const bust = `?v=${Date.now()}`;
+  const [latestResp, seriesResp] = await Promise.all([
+    fetch("data/latest.json" + bust),
+    fetch("data/index_series.json" + bust)
+  ]);
+  const latest = await latestResp.json();
+  const series = await seriesResp.json();
 
-      const last = series.at(-1)?.HI ?? 0;
-      const prev = series.at(-2)?.HI ?? 0;
-      const delta = last - prev;
-      const dir = delta > 0 ? "↑ better" : (delta < 0 ? "↓ worse" : "→ unchanged");
-      document.getElementById("headline").textContent =
-        `Last updated ${latest.date} • Change vs yesterday: ${delta} (${dir})`;
+  const last = series[series.length - 1]?.HI ?? 0;
+  const prev = series[series.length - 2]?.HI ?? 0;
+  const delta = last - prev;
+  const dir = delta > 0 ? "↑ better" : (delta < 0 ? "↓ worse" : "→ unchanged");
 
-      const dial = document.getElementById("dial");
-      dial.textContent = latest.hi;
-      dial.style.color = latest.hi > 0 ? "#138a36" : (latest.hi < 0 ? "#c62828" : "#222");
+  document.getElementById("headline").textContent =
+    `Last updated ${latest.date} · Change vs yesterday: ${delta} (${dir})`;
 
-      const labels = series.map(x => x.date);
-      const values = series.map(x => x.HI);
-      const ctx = document.getElementById("hiChart");
+  const dial = document.getElementById("dial");
+  dial.textContent = latest.HI ?? "--";
+  dial.style.color = latest.HI > 0 ? "#138a36" : (latest.HI < 0 ? "#c62828" : "#222");
 
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [{ label: "HI", data: values, tension: 0.2, borderWidth: 2, pointRadius: 3 }]
-        },
-        options: {
-          responsive: true,
-          animation: false,
-          scales: {
-            y: { min: -100, max: 100, grid: { color: "#eee" } },
-            x: { grid: { color: "#f6f6f6" } }
-          },
-          plugins: { legend: { display: true }, tooltip: { enabled: true } }
-        }
-      });
+  const labels = series.map(x => x.date);
+  const values = series.map(x => x.HI);
+  const ctx = document.getElementById("hiChart");
+
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "HI",
+        data: values,
+        tension: 0.2,
+        borderWidth: 2,
+        pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      scales: {
+        y: { min: -100, max: 100, grid: { color: "#eee" } },
+        x: { grid: { color: "#f6f6f6" } }
+      },
+      plugins: {
+        legend: { display: true },
+        tooltip: { enabled: true }
+      }
     }
-
-    load().catch(err => {
-      document.getElementById("headline").textContent = "Could not load data. Try reloading.";
-      console.error(err);
-    });
-  </script>
+  });
+}
+load().catch(err => {
+  document.getElementById("headline").textContent = "Could not load data. Try reloading.";
+  console.error(err);
+});
+</script>
 </body>
 </html>
