@@ -19,7 +19,7 @@
   <script>
     async function load() {
       const bust = `?v=${Date.now()}`;
-      const items = await fetch("../data/clusters.json"+bust).then(r=>r.json());
+      const items = await fetch("data/clusters.json"+bust).then(r=>r.json());
       const list = document.getElementById("list");
       list.innerHTML = "";
       items.forEach(it => {
