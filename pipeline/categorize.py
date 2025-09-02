@@ -1,24 +1,21 @@
 import re
 
-# Very simple keyword-based categorizer. You can expand this anytime.
 RULES = [
-    # component, sign, keywords
-    ("A", -1, r"war|attack|missile|drone|conflict|clashes|shooting|airstrike|invasion|terror|raid|shelling"),
-    ("C", -1, r"earthquake|flood|wildfire|hurricane|cyclone|landslide|eruption|famine|outbreak|collapse"),
-    ("D", +1, r"court|verdict|rights|anti[- ]corruption|transparency|accountability|treaty|ceasefire"),
-    ("E", +1, r"vaccine|cancer|science|research|discovery|breakthrough|trial|approved|cure|space|fusion"),
-    ("B", +1, r"aid|donation|charity|volunteer|rebuild|peace|reconciliation|humanitarian|rescued|relief"),
+    ("A", -1, r"war|attack|missile|drone|conflict|clash|shooting|strike|invasion|terror|raid|shelling|military"),
+    ("C", -1, r"earthquake|flood|wildfire|hurricane|cyclone|storm|landslide|eruption|tsunami|famine|outbreak|pandemic"),
+    ("D", +1, r"court|verdict|rights|election|democracy|anti[- ]corruption|transparency|accountability|treaty|ceasefire|agreement"),
+    ("E", +1, r"vaccine|cancer|science|research|discovery|breakthrough|trial|approved|cure|space|fusion|climate|technology"),
+    ("B", +1, r"aid|donation|charity|volunteer|rebuild|peace|reconciliation|humanitarian|rescued|relief|cooperate|deal"),
 ]
 
-_compiled = [(c, s, re.compile(pat, re.I)) for (c, s, pat) in RULES]
+STRONG_WORDS = re.compile(r"\b(major|massive|deadly|historic|record|breakthrough|landmark|devastating|catastrophic|huge)\b", re.I)
+COMPILED = [(c, s, re.compile(p, re.I)) for (c, s, p) in RULES]
 
-def categorize(title):
-    for comp, sign, pat in _compiled:
-        if pat.search(title):
-            # magnitude heuristic: stronger words → bigger magnitude
-            strong = len(re.findall(r"\b(major|massive|deadly|historic|record|breakthrough|landmark)\b", title, re.I))
+def categorize(title: str):
+    for comp, sign, patt in COMPILED:
+        if patt.search(title):
+            strong = len(STRONG_WORDS.findall(title))
             mag = 0.6 + 0.1*strong
-            mag = max(0.3, min(1.0, mag))
-            return comp, sign, mag
-    # fallback: neutral small magnitude, treated as slightly positive civics
+            return comp, sign, max(0.3, min(1.0, mag))
+    # default: low-weight civics
     return "D", +1, 0.3
