@@ -1,0 +1,12 @@
+domain,bias_bin,reliability
+apnews.com,center,0.95
+reuters.com,center,0.97
+bbc.co.uk,center,0.95
+bbc.com,center,0.95
+nytimes.com,left,0.9
+guardian.com,left,0.9
+wsj.com,right,0.9
+foxnews.com,right,0.75
+aljazeera.com,center,0.9
+cnn.com,left,0.85
+thehill.com,center,0.85
