@@ -25,78 +25,71 @@ def load_bias_map(path="data/bias_ratings.csv"):
     return bias
 
 
-def summarize_cluster(cluster, bias_map):
-    rep = max(cluster, key=lambda x: len(x["title"]))
-    comp, sign, mag = categorize(rep["title"])
-    date = Counter([it["date"] for it in cluster]).most_common(1)[0][0]
-
-    rels, bins = [], []
-    for it in cluster:
-        bias_bin, rel = bias_map.get(it["domain"], ("center", 0.8))
-        rels.append(rel)
-        bins.append(bias_bin)
-    reliability = sum(rels) / max(1, len(rels))
-    counts = Counter(bins)
-    total = sum(counts.values())
-    bias_max_share = max(counts.values()) / total if total else 0.0
-
+def cluster_summary(cluster, bias_map):
+    # representative title (most common string)
+    rep = max(cluster, key=lambda x: Counter([c["title"] for c in cluster])[x["title"]])
+    sign = sum([c["sign"] for c in cluster]) / len(cluster)
+    magnitude = sum([c["magnitude"] for c in cluster]) / len(cluster)
+    reliability = sum([bias_map.get(c["source"], ("center", 0.8))[1] for c in cluster]) / len(cluster)
+    bias_concentration = max(Counter([bias_map.get(c["source"], ("center", 0.8))[0] for c in cluster]).values()) / len(cluster)
     return {
-        "date": date,
-        "component": comp,
-        "sign": sign,
-        "magnitude": mag,
-        "reliability": reliability,
-        "bias_max_share": bias_max_share,
-        "title": rep["title"],
+        "date": rep["date"],
+        "component": rep["component"],
+        "sign": round(sign, 2),
+        "magnitude": round(magnitude, 2),
+        "reliability": round(reliability, 2),
+        "bias_max_share": round(bias_concentration, 2),
+        "title": rep["title"]
     }
 
 
-def run(output_dir="data", days=1, maxrecords=30):
+def main(days=1, maxrecords=100, output_dir="data"):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    bias_map = load_bias_map()
-    try:
-        arts = fetch_articles(days=days, maxrecords=maxrecords)
-    except Exception as e:
-        print("Fetch failed:", e)
-        arts = []
-    print("DEBUG: fetched articles:", len(arts))
+    # fetch
+    articles = fetch_articles(days=days, maxrecords=maxrecords)
+    print("DEBUG: fetched articles:", len(articles))
 
-    if not arts:
-        import datetime as dt
-        d = dt.date.today().isoformat()
-        clusters = [[{"title": "fallback civics story", "domain": "apnews.com", "date": d}]]
-    else:
-        clusters = cluster_titles(arts, threshold=0.28, max_clusters=150)
+    # cluster
+    clusters = cluster_titles(articles)
     print("DEBUG: clusters:", len(clusters))
 
-    summaries = [summarize_cluster(c, bias_map) for c in clusters]
+    # bias map
+    bias_map = load_bias_map()
 
-    df = pd.DataFrame([
-        {k: v for k, v in s.items()
-         if k in ("date", "component", "sign", "magnitude", "reliability", "bias_max_share")}
-        for s in summaries
-    ])
-
-    hi = HIModel().compute(df)  # list of {"date","HI"}
-    latest_obj = hi[-1]
-    out_latest = {"date": latest_obj["date"], "hi": latest_obj["HI"]}
-
-    # write outputs used by the website
-    with open(f"{output_dir}/latest.json", "w") as f:
-        json.dump(out_latest, f, indent=2)
-    with open(f"{output_dir}/index_series.json", "w") as f:
-        json.dump(hi, f, indent=2)
-    with open(f"{output_dir}/clusters.json", "w") as f:
+    # summarize clusters
+    summaries = [cluster_summary(c, bias_map) for c in clusters]
+    with open(Path(output_dir) / "clusters.json", "w") as f:
         json.dump(summaries, f, indent=2)
 
-    print("Wrote data")
+    # compute Humanity Index
+    hi_model = HIModel()
+    hi_value = hi_model.compute(summaries)
+
+    latest = {
+        "date": str(pd.Timestamp.today().date()),
+        "value": hi_value  # 🔥 FIX: was "hi"
+    }
+    with open(Path(output_dir) / "latest.json", "w") as f:
+        json.dump(latest, f, indent=2)
+
+    # append to time series
+    index_series_path = Path(output_dir) / "index_series.json"
+    if index_series_path.exists():
+        with open(index_series_path) as f:
+            series = json.load(f)
+    else:
+        series = []
+    series.append(latest)
+    with open(index_series_path, "w") as f:
+        json.dump(series, f, indent=2)
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--output-dir", default="data")
-    ap.add_argument("--days", type=int, default=1)
-    ap.add_argument("--maxrecords", type=int, default=30)
-    args = ap.parse_args()
-    run(args.output_dir, args.days, args.maxrecords)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--days", type=int, default=1)
+    parser.add_argument("--maxrecords", type=int, default=100)
+    parser.add_argument("--output-dir", type=str, default="data")
+    args = parser.parse_args()
+
+    main(days=args.days, maxrecords=args.maxrecords, output_dir=args.output_dir)
