@@ -5,8 +5,8 @@ import pandas as pd
 from collections import defaultdict
 from pathlib import Path
 
-# ✅ fixed imports to use proper package path
-from pipeline.model import HModel
+# ✅ FIXED import
+from pipeline.model import Model as HModel
 from pipeline.gdelt_fetch import fetch_articles
 from pipeline.categorize import categorize
 from pipeline.cluster import cluster_titles
@@ -36,15 +36,14 @@ def build_clusters(articles):
         if not items:
             continue
         # aggregate sign by majority
-        s = 1 if sum(x.get("sign", 1) for x in items) / len(items) >= 0 else -1
+        s = 1 if sum(x.get("sign", 1) for x in items) >= 0 else -1
         # simple aggregates
         mag = sum(x.get("magnitude", 0.6) for x in items) / len(items)
         rel = sum(float(x.get("reliability", 0.9)) for x in items) / len(items)
         bias = max(float(x.get("bias_max_share", 1.0)) for x in items)
         date = items[0].get("date", "")
-        titles = cluster_titles([i.get("title", "") for i in items])
+        titles = cluster_titles([it.get("title", "") for it in items])
         title = titles[0] if titles else ""
-
         clusters.append({
             "date": date,
             "component": comp,
@@ -54,7 +53,6 @@ def build_clusters(articles):
             "bias_max_share": float(bias),
             "title": title,
         })
-
     # keep at most A..E in stable order
     order = ["A", "B", "C", "D", "E"]
     clusters.sort(key=lambda c: order.index(c["component"]) if c["component"] in order else 99)
@@ -64,10 +62,10 @@ def build_clusters(articles):
 def run(output_dir="public/data", days=1, maxrecords=30):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    # 1) Fetch articles
+    # 1) Fetch articles (real or fallback inside fetch_articles)
     articles = fetch_articles(days=days, maxrecords=maxrecords)
 
-    # 2) Build clusters
+    # 2) Build clusters for transparency
     clusters = build_clusters(articles)
 
     # 3) Build DataFrame for the model
@@ -84,7 +82,7 @@ def run(output_dir="public/data", days=1, maxrecords=30):
     df = pd.DataFrame(rows)
 
     # 4) Compute HI time series
-    hi_series = HModel().compute(df)  # list of {"date": ..., "HI": int}
+    hi_series = HModel().compute(df)  # list of {"date": "...", "HI": int}
 
     # 5) Write files the site expects
     latest_obj = hi_series[-1] if hi_series else {"date": None, "HI": 0}
@@ -99,7 +97,7 @@ def run(output_dir="public/data", days=1, maxrecords=30):
     with open(f"{output_dir}/clusters.json", "w") as f:
         json.dump(clusters, f, indent=2)
 
-    print("✅ Wrote data")
+    print("wrote data")
 
 
 if __name__ == "__main__":
