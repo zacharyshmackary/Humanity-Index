@@ -1,0 +1,76 @@
+# Humanity Index — Starter (Auto-Pipeline + Website)
+
+This template gives you the **easiest path** to a smart, automated Humanity Index with:
+- **Nightly automation** via GitHub Actions (no servers to manage).
+- **Static website** (GitHub Pages) that shows Today’s HI, a chart, and breakdowns.
+- **Local testing** via FastAPI (`uvicorn`) if you want to run on your machine.
+
+> The compute logic matches the model we discussed (A–E components, bias-aware weights, z-scores, tanh to -100..+100).
+
+---
+
+## Quick Start (easiest path: GitHub + Pages)
+
+1) **Create a GitHub repo** and upload everything in this folder (or click “Use this template” if you host it as a template).
+2) **Enable GitHub Actions** in your repo settings.
+3) **Enable GitHub Pages**: Settings → Pages → Source = `gh-pages` branch (it will appear after the first successful workflow).
+4) The workflow `.github/workflows/compute.yml` will run **daily**, fetch news from **GDELT**, compute the index, and publish:
+   - JSON data under `data/` in `gh-pages` branch (e.g., `data/latest.json`, `data/daily/YYYY-MM-DD.json`)
+   - A static `index.html` dashboard that reads `data/latest.json` and the time series.
+5) Visit your GitHub Pages URL (usually `https://<your-username>.github.io/<repo>/`) to see the dashboard.
+
+**No servers, no databases** — all automated by GitHub. You can still run it locally if you prefer (see below).
+
+---
+
+## Local Testing (optional)
+
+### 1) Run the pipeline once
+```bash
+# in the repo root
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Run for yesterday and append history
+python pipeline/pipeline.py --days 1 --output-dir data_local --append-history
+```
+
+Outputs go to `data_local/`:
+- `latest.json` — today’s HI and components
+- `index_series.json` — historical HI time series
+- `components_series.json` — historical per-component series
+
+### 2) Launch local API + dashboard
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+Open http://localhost:8000 in a browser.
+
+---
+
+## What’s inside
+
+- `pipeline/model.py` — Scoring logic (components, z-scores, tanh scaling)
+- `pipeline/pipeline.py` — Orchestrates: fetch → cluster → categorize → compute → write JSON
+- `pipeline/gdelt_fetch.py` — Pulls last N days from GDELT (events + GKG)
+- `pipeline/categorize.py` — Keyword + signal heuristics mapping to A–E + magnitude/sign
+- `pipeline/cluster.py` — Lightweight text clustering for dedup (TF-IDF + cosine threshold)
+- `data/bias_ratings.csv` — Small starter map of domains to bias/reliability (extend later)
+- `app.py` — FastAPI server exposing `/api/*` and serving `web/` dashboard
+- `web/index.html`, `web/app.js` — Static dashboard UI
+- `.github/workflows/compute.yml` — Nightly automation and GitHub Pages publish
+- `requirements.txt` — Python dependencies
+- `settings.yaml` — Tunables (weights, thresholds)
+
+---
+
+## Customize / Extend
+
+- Add more **bias ratings** by appending rows in `data/bias_ratings.csv` (e.g., from AllSides/Ad Fontes exports).
+- Tune **weights & thresholds** in `settings.yaml` (component weights, bias penalty, clustering threshold).
+- Add **regions**: We already parse GDELT geo fields; you can aggregate per region and publish `regions.json`.
+- Add **multi-source ingestion**: Create new fetchers in `pipeline/` and combine before clustering.
+- Improve **magnitude** with better severity extraction (casualty counts, aid amounts) as you get richer data.
+
+**Tip:** Commit the repo and let the Actions job run once. You’ll get a gh-pages site and can iterate safely.
