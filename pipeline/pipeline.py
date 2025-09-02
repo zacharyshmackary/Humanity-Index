@@ -1,113 +1,53 @@
-import json, argparse, pandas as pd
-from collections import Counter
-from pathlib import Path
+# pipeline/cluster.py
 
-from .gdelt_fetch import fetch_articles
-from .cluster import cluster_titles
-from .categorize import categorize
+"""
+Simple title-based clustering.
 
+Input:  a list of article dicts, each at least with {"title": "...", "domain": "...", ...}
+Output: a list of clusters, where each cluster is a list of the original article dicts.
 
-def load_bias_map(path="data/bias_ratings.csv"):
-    import csv
-    bias = {}
-    with open(path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            d = (row.get("domain") or "").strip().lower()
-            if not d:
-                continue
-            bias_bin = (row.get("bias_bin") or "center").strip().lower()
-            try:
-                rel = float(row.get("reliability") or "0.8")
-            except Exception:
-                rel = 0.8
-            bias[d] = (bias_bin, rel)
-    return bias
+Clustering is greedy: the first title in a cluster is the reference; a new title joins the
+first cluster whose reference passes a similarity threshold; otherwise it starts a new cluster.
+"""
+
+from difflib import SequenceMatcher
 
 
-def cluster_summary(cluster, bias_map):
-    # representative = most common title in the cluster
-    titles = [c.get("title", "Untitled") for c in cluster]
-    rep_title = Counter(titles).most_common(1)[0][0]
-    rep = next((c for c in cluster if c.get("title") == rep_title), cluster[0])
-
-    sign = sum(c.get("sign", 0) for c in cluster) / len(cluster)
-    magnitude = sum(c.get("magnitude", 0) for c in cluster) / len(cluster)
-    reliability = (
-        sum(bias_map.get(c.get("source", ""), ("center", 0.8))[1] for c in cluster)
-        / len(cluster)
-    )
-    bias_concentration = (
-        max(
-            Counter(
-                bias_map.get(c.get("source", ""), ("center", 0.8))[0] for c in cluster
-            ).values()
-        )
-        / len(cluster)
-    )
-
-    return {
-        "date": rep.get("date", ""),
-        "component": rep.get("component", ""),
-        "sign": round(sign, 2),
-        "magnitude": round(magnitude, 2),
-        "reliability": round(reliability, 2),
-        "bias_max_share": round(bias_concentration, 2),
-        "title": rep.get("title", "Untitled"),
-    }
+def _similar(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
 
 
-def compute_index(clusters):
-    # Weighted index = average of sign*magnitude*reliability across clusters
-    if not clusters:
-        return 0
-    values = [
-        c.get("sign", 0) * c.get("magnitude", 0) * c.get("reliability", 0.8)
-        for c in clusters
-    ]
-    return round(sum(values) / len(values), 2)
+def cluster_titles(items, threshold: float = 0.70):
+    """
+    Group *dict* items by title similarity.
 
+    - items: iterable of dicts; each should have a "title" key.
+    - threshold: similarity (0..1) to join an existing cluster.
 
-def main(args):
-    bias_map = load_bias_map()
+    Returns: List[List[dict]]  (each inner list is a cluster of the original dicts)
+    """
+    clusters: list[list[dict]] = []
 
-    # 1) fetch articles
-    arts = fetch_articles(args.days, args.maxrecords)
-    print("DEBUG: fetched articles:", len(arts))
+    for it in items:
+        # be defensive: accept dicts only, skip empties
+        if not isinstance(it, dict):
+            # coerce into a dict with best-effort title
+            it = {"title": str(it)}
+        title = it.get("title") or ""
+        if not title:
+            # if there is no title, skip—can't cluster meaningfully
+            continue
 
-    # 2) cluster by title similarity
-    clusters = cluster_titles([a.get("title", "") for a in arts])
-    print("DEBUG: Clusters:", len(clusters))
+        placed = False
+        for cluster in clusters:
+            # compare to the first item's title in the cluster
+            anchor_title = cluster[0].get("title", "")
+            if _similar(title, anchor_title) >= threshold:
+                cluster.append(it)
+                placed = True
+                break
 
-    # 3) categorize into components A..E (optional bucketing)
-    categorized = categorize(clusters)
+        if not placed:
+            clusters.append([it])
 
-    # 4) summarize each cluster
-    summaries = [cluster_summary(c, bias_map) for c in categorized]
-
-    # 5) compute Humanity Index
-    index_value = compute_index(summaries)
-
-    # 6) write outputs used by the website
-    out = Path(args.output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-
-    with open(out / "clusters.json", "w", encoding="utf-8") as f:
-        json.dump(summaries, f, indent=2)
-
-    with open(out / "latest.json", "w", encoding="utf-8") as f:
-        json.dump(
-            {"date": pd.Timestamp.today().strftime("%Y-%m-%d"), "value": index_value},
-            f,
-            indent=2,
-        )
-
-    print("Wrote data")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--days", type=int, default=1)
-    parser.add_argument("--maxrecords", type=int, default=100)
-    parser.add_argument("--output-dir", type=str, default="data")
-    args = parser.parse_args()
-    main(args)
+    return clusters
