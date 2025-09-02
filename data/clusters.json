@@ -1,11 +1,47 @@
 [
   {
     "date": "2025-09-02",
-    "component": "D",
-    "sign": 1,
-    "magnitude": 0.3,
+    "component": "A",
+    "sign": -1,
+    "magnitude": 0.6,
+    "reliability": 0.97,
+    "bias_max_share": 1.0,
+    "title": "Border clashes escalate despite ceasefire talks"
+  },
+  {
+    "date": "2025-09-02",
+    "component": "C",
+    "sign": -1,
+    "magnitude": 0.6,
     "reliability": 0.95,
     "bias_max_share": 1.0,
-    "title": "fallback civics story"
+    "title": "Severe floods displace thousands after torrential rains"
+  },
+  {
+    "date": "2025-09-02",
+    "component": "D",
+    "sign": 1,
+    "magnitude": 0.6,
+    "reliability": 0.95,
+    "bias_max_share": 1.0,
+    "title": "Court upholds anti-corruption reforms increasing transparency"
+  },
+  {
+    "date": "2025-09-02",
+    "component": "E",
+    "sign": 1,
+    "magnitude": 0.6,
+    "reliability": 0.9,
+    "bias_max_share": 1.0,
+    "title": "Cancer trial reports promising new therapy in early results"
+  },
+  {
+    "date": "2025-09-02",
+    "component": "B",
+    "sign": 1,
+    "magnitude": 0.6,
+    "reliability": 0.9,
+    "bias_max_share": 1.0,
+    "title": "International donors pledge relief funds for affected regions"
   }
 ]
