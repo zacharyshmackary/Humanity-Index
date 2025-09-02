@@ -1,14 +1,11 @@
 import time
 import datetime as dt
 from urllib.parse import urlencode
-
 import requests
 
 GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-
 def _parse_date(seen: str) -> str:
-    """Convert GDELT seendate variants to YYYY-MM-DD (UTC)."""
     if not seen:
         return dt.date.today().isoformat()
     s = str(seen).strip().replace("Z", "").replace("T", " ")
@@ -19,15 +16,12 @@ def _parse_date(seen: str) -> str:
             pass
     return dt.date.today().isoformat()
 
-
 def _get_json_with_retries(url: str, retries: int = 4, backoff: float = 1.5):
-    """GET JSON with simple backoff to avoid 429 Too Many Requests."""
     delay = 1.0
     last_err = None
     for _ in range(retries):
         try:
             r = requests.get(url, timeout=30)
-            # If rate-limited, raise for status so we hit the except below
             r.raise_for_status()
             return r.json()
         except Exception as e:
@@ -36,24 +30,17 @@ def _get_json_with_retries(url: str, retries: int = 4, backoff: float = 1.5):
             delay *= backoff
     raise last_err
 
-
-def fetch_articles(days: int = 1, maxrecords: int = 150):
-    """
-    Fetch recent articles from GDELT Doc API.
-    Returns a list of dicts: {title, url, domain, date}
-    """
+def fetch_articles(days: int = 2, maxrecords: int = 150):
     params = {
         "query": "*",
         "mode": "ArtList",
         "maxrecords": maxrecords,   # keep modest to avoid 429s
         "format": "json",
-        "timespan": f"{days}d",     # e.g., '1d', '2d'
+        "timespan": f"{days}d",
         "sort": "datedesc",
     }
     url = f"{GDELT_DOC_API}?{urlencode(params)}"
-
     data = _get_json_with_retries(url)
-
     out = []
     for a in data.get("articles", []):
         title = (a.get("title") or "").strip()
