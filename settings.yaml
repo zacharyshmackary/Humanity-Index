@@ -1,0 +1,14 @@
+alpha: 0.8
+bias_threshold: 0.85
+bias_penalty: 0.9
+components:
+  A: 0.40
+  B: 0.25
+  C: 0.15
+  D: 0.10
+  E: 0.10
+cluster:
+  cosine_threshold: 0.28
+  max_clusters_per_day: 150
+history:
+  min_days_for_stats: 14
