@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transparency</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Transparency</h1>
+  <p>Daily clusters used to compute the index. Each shows component, sign, reliability, and bias concentration.</p>
+  <div id="clusters">Loading...</div>
+
+<script>
+async function load() {
+  const bust = `?v=${Date.now()}`;
+  const resp = await fetch("data/clusters.json" + bust);
+  const clusters = await resp.json();
+  document.getElementById("clusters").innerHTML =
+    `<pre>${JSON.stringify(clusters, null, 2)}</pre>`;
+}
+load().catch(err => {
+  document.getElementById("clusters").textContent = "Could not load clusters.json";
+  console.error(err);
+});
+</script>
+</body>
+</html>
