@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
       - run: pip install -r requirements.txt
-      - run: python -m pipeline.pipeline --output-dir data
+      - run: python -m pipeline.pipeline --days 2 --maxrecords 400 --output-dir data
       - run: |
           mkdir -p public/data
           cp -r data public/
