@@ -3,8 +3,8 @@ from collections import Counter
 from pathlib import Path
 
 from .model import HIModel
-from .gdelt_fetch import fetch_articles
-from .cluster import cluster_titles
+from .gdelt_fetch import fetch_articles print("DEBUG: fetched articles:", len(arts))
+from .cluster import cluster_titles print("DEBUG: clusters:", len(clusters))
 from .categorize import categorize
 
 
