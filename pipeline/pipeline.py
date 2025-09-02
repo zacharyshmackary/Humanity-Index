@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 # ✅ FIXED import
-from pipeline.model import Model as HIModel
+from pipeline.model import HIModel
 from pipeline.gdelt_fetch import fetch_articles
 from pipeline.categorize import categorize
 from pipeline.cluster import cluster_titles
