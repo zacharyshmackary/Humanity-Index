@@ -3,8 +3,8 @@ from collections import Counter
 from pathlib import Path
 
 from .model import HIModel
-from .gdelt_fetch import fetch_articles print("DEBUG: fetched articles:", len(arts))
-from .cluster import cluster_titles print("DEBUG: clusters:", len(clusters))
+from .gdelt_fetch import fetch_articles
+from .cluster import cluster_titles
 from .categorize import categorize
 
 
@@ -26,7 +26,7 @@ def load_bias_map(path="data/bias_ratings.csv"):
 
 
 def cluster_summary(cluster, bias_map):
-    # representative title (longest title)
+    # representative title
     rep = max(cluster, key=lambda x: len(x["title"]))
     comp, sign, mag = categorize(rep["title"])
 
@@ -59,37 +59,38 @@ def run(output_dir="data", days=2, maxrecords=150):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     bias_map = load_bias_map()
+
+    # ---- FETCH ----
     try:
         arts = fetch_articles(days=days, maxrecords=maxrecords)
     except Exception as e:
         print("Fetch failed:", e)
         arts = []
+    print("DEBUG: fetched articles:", len(arts))
 
-    # If no articles, keep site alive with a tiny fallback
+    # ---- CLUSTER ----
     if not arts:
         import datetime as dt
         d = dt.date.today().isoformat()
         clusters = [[{"title": "fallback civics story", "domain": "apnews.com", "date": d}]]
     else:
-        clusters = cluster_titles(
-            arts,
-            threshold=0.28,
-            max_clusters=150
-        )
+        clusters = cluster_titles(arts, threshold=0.28, max_clusters=150)
+    print("DEBUG: clusters:", len(clusters))
 
+    # ---- SUMMARIZE -> DF ----
     summaries = [cluster_summary(c, bias_map) for c in clusters]
-
-    # DF for the model
     df = pd.DataFrame([
         {k: v for k, v in s.items()
          if k in ("date", "component", "sign", "magnitude", "reliability", "bias_max_share")}
         for s in summaries
     ])
 
+    # ---- MODEL ----
     hi = HIModel().compute(df)  # [{"date":"YYYY-MM-DD","HI":int}]
     latest_obj = hi[-1]
     out_latest = {"date": latest_obj["date"], "hi": latest_obj["HI"]}
 
+    # ---- OUTPUT FILES ----
     with open(f"{output_dir}/latest.json", "w") as f:
         json.dump(out_latest, f, indent=2)
     with open(f"{output_dir}/index_series.json", "w") as f:
