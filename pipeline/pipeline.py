@@ -1,110 +1,54 @@
-import json, argparse, pandas as pd
-from collections import Counter
-from pathlib import Path
-
-from .model import HIModel
-from .gdelt_fetch import fetch_articles
-from .cluster import cluster_titles
-from .categorize import categorize
+import pandas as pd, numpy as np, yaml
 
 
-def load_bias_map(path="data/bias_ratings.csv"):
-    import csv
-    bias = {}
-    with open(path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            d = (row.get("domain") or "").strip().lower()
-            if not d:
-                continue
-            bias_bin = (row.get("bias_bin") or "center").strip().lower()
-            try:
-                rel = float(row.get("reliability", "0.8"))
-            except Exception:
-                rel = 0.8
-            bias[d] = (bias_bin, rel)
-    return bias
+class HIModel:
+    def __init__(self, settings="settings.yaml"):
+        cfg = yaml.safe_load(open(settings))
+        self.alpha = float(cfg["alpha"])
+        self.bias_threshold = float(cfg["bias_threshold"])
+        self.bias_lambda = float(cfg.get("bias_lambda", 0.6))
+        self.weights = dict(cfg["components"])
+        hist = cfg.get("history", {})
+        self.min_days_for_stats = int(hist.get("min_days_for_stats", 14))
+        self.rolling_days = int(hist.get("rolling_days", 0))
 
+    def _bias_penalty(self, bias_max_share):
+        excess = max(0.0, float(bias_max_share) - self.bias_threshold)
+        denom = max(1e-6, 1.0 - self.bias_threshold)
+        p = 1.0 - self.bias_lambda * excess / denom
+        return float(np.clip(p, 0.5, 1.0))  # never below 0.5
 
-def cluster_summary(cluster, bias_map):
-    # representative title
-    rep = max(cluster, key=lambda x: len(x["title"]))
-    comp, sign, mag = categorize(rep["title"])
+    def compute(self, df):
+        df = df.copy()
 
-    # majority date
-    date = Counter([it["date"] for it in cluster]).most_common(1)[0][0]
+        df["b"] = df["bias_max_share"].apply(self._bias_penalty)
+        df["delta"] = df["sign"] * df["magnitude"] * df["reliability"] * df["b"]
 
-    # reliability & bias share
-    rels, bins = [], []
-    for it in cluster:
-        bias_bin, rel = bias_map.get(it["domain"], ("center", 0.8))
-        rels.append(rel)
-        bins.append(bias_bin)
-    reliability = sum(rels) / max(1, len(rels))
-    counts = Counter(bins)
-    total = sum(counts.values())
-    bias_max_share = max(counts.values()) / total if total else 0.0
+        comp = df.groupby(["date", "component"])["delta"].sum().unstack(fill_value=0.0).sort_index()
 
-    return {
-        "date": date,
-        "component": comp,
-        "sign": sign,
-        "magnitude": mag,
-        "reliability": reliability,
-        "bias_max_share": bias_max_share,
-        "title": rep["title"],
-    }
+        # ----- normalization / scoring -----
+        w = pd.Series(self.weights).reindex(comp.columns, fill_value=0.0)
 
+        # Small-history fallback (avoid zero when only 1–2 days exist)
+        if comp.shape[0] < 3:
+            Z = (comp * w).sum(axis=1)
+            scale = max(1.0, float(comp.abs().sum(axis=1).median() or 1.0))
+            HI = (100 * np.tanh(self.alpha * Z / scale)).round().astype(int)
+        else:
+            if self.rolling_days:
+                mu = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).mean().shift(1)
+                sigma = comp.rolling(self.rolling_days, min_periods=self.min_days_for_stats).std().shift(1).replace(0, 1e-6)
+                z = (comp - mu).div(sigma).fillna(0.0)
+            else:
+                mu = comp.mean()
+                sigma = comp.std().replace(0, 1e-6)
+                z = (comp - mu) / sigma
 
-def run(output_dir="data", days=2, maxrecords=150):
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+            Z = (z * w).sum(axis=1)
+            HI = (100 * np.tanh(self.alpha * Z)).round().astype(int)
 
-    bias_map = load_bias_map()
-
-    # ---- FETCH ----
-    try:
-        arts = fetch_articles(days=days, maxrecords=maxrecords)
-    except Exception as e:
-        print("Fetch failed:", e)
-        arts = []
-    print("DEBUG: fetched articles:", len(arts))
-
-    # ---- CLUSTER ----
-    if not arts:
-        import datetime as dt
-        d = dt.date.today().isoformat()
-        clusters = [[{"title": "fallback civics story", "domain": "apnews.com", "date": d}]]
-    else:
-        clusters = cluster_titles(arts, threshold=0.28, max_clusters=150)
-    print("DEBUG: clusters:", len(clusters))
-
-    # ---- SUMMARIZE -> DF ----
-    summaries = [cluster_summary(c, bias_map) for c in clusters]
-    df = pd.DataFrame([
-        {k: v for k, v in s.items()
-         if k in ("date", "component", "sign", "magnitude", "reliability", "bias_max_share")}
-        for s in summaries
-    ])
-
-    # ---- MODEL ----
-    hi = HIModel().compute(df)  # [{"date":"YYYY-MM-DD","HI":int}]
-    latest_obj = hi[-1]
-    out_latest = {"date": latest_obj["date"], "hi": latest_obj["HI"]}
-
-    # ---- OUTPUT FILES ----
-    with open(f"{output_dir}/latest.json", "w") as f:
-        json.dump(out_latest, f, indent=2)
-    with open(f"{output_dir}/index_series.json", "w") as f:
-        json.dump(hi, f, indent=2)
-    with open(f"{output_dir}/clusters.json", "w") as f:
-        json.dump(summaries, f, indent=2)
-
-    print("Wrote data")
-
-
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--output-dir", default="data")
-    ap.add_argument("--days", type=int, default=2)
-    ap.add_argument("--maxrecords", type=int, default=150)
-    args = ap.parse_args()
-    run(args.output_dir, args.days, args.maxrecords)
+        out = []
+        for d, h in HI.items():
+            ds = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+            out.append({"date": ds, "HI": int(h)})
+        return out
