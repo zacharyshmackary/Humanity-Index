@@ -4,17 +4,14 @@ from urllib.parse import urlencode
 GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 def fetch_articles(days=1, maxrecords=250):
-    """
-    Returns: list of dicts {title, url, domain, date}
-    date is YYYY-MM-DD (UTC)
-    """
     params = {
         "query": "*",
         "mode": "ArtList",
         "maxrecords": maxrecords,
         "format": "json",
-        "timespan": f"{days}d",
+        "timespan": f"{days}d",   # 1d = 24h, bump to 2d or 3d if empty
         "sort": "datedesc"
+    }
     }
     url = f"{GDELT_DOC_API}?{urlencode(params)}"
     r = requests.get(url, timeout=30)
