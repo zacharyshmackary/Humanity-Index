@@ -2,7 +2,7 @@ import json, argparse, pandas as pd
 from collections import Counter
 from pathlib import Path
 
-from .model import HModel
+from .model import Model
 from .gdelt_fetch import fetch_articles
 from .cluster import cluster_titles
 from .categorize import categorize
