@@ -2,7 +2,7 @@ name: Compute Humanity Index
 
 on:
   schedule:
-    - cron: "5 1 * * *"
+    - cron: "30 6 * * *"   # run daily at 06:30 UTC (quieter hour)
   workflow_dispatch:
 
 jobs:
@@ -17,7 +17,8 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: python -m pipeline.pipeline --days 1 --maxrecords 60 --output-dir data
+      # gentler request to avoid GDELT 429s
+      - run: python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir data
 
       - run: |
           mkdir -p public/data
