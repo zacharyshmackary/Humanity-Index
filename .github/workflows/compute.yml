@@ -2,7 +2,7 @@ name: Compute Humanity Index
 
 on:
   schedule:
-    - cron: "30 6 * * *"   # run daily at 06:30 UTC (quieter hour)
+    - cron: "30 6 * * *"   # daily at 06:30 UTC
   workflow_dispatch:
 
 jobs:
@@ -17,12 +17,12 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      # gentler request to avoid GDELT 429s
+      # gentle request so GDELT is less likely to rate-limit
       - run: python -m pipeline.pipeline --days 1 --maxrecords 30 --output-dir data
 
       - run: |
           mkdir -p public/data
-          cp -r data public/
+          cp -r data/* public/data/
           cp -r web/* public/
 
       - uses: peaceiris/actions-gh-pages@v3
