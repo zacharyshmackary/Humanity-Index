@@ -1,33 +1,40 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Humanity Index</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: system-ui; margin: 24px; }
-    .dial { font-size: 48px; font-weight: bold; }
-  </style>
-</head>
 <body>
+  <h1 style="margin:0 0 6px 0;">Humanity Index</h1>
+  <div id="meta" style="color:#666;margin:0 0 18px 0;">Loading…</div>
   <div class="dial" id="dial">—</div>
   <canvas id="chart"></canvas>
+
   <script>
     async function load() {
       const latest = await fetch("data/latest.json").then(r=>r.json());
-      document.getElementById("dial").textContent = latest.hi;
       const series = await fetch("data/index_series.json").then(r=>r.json());
+
+      // Last updated + delta vs yesterday
+      const last = series[series.length-1]?.HI ?? 0;
+      const prev = series[series.length-2]?.HI ?? 0;
+      const delta = last - prev;
+      const dir = delta > 0 ? "↑ better" : (delta < 0 ? "↓ worse" : "→ unchanged");
+      document.getElementById("meta").textContent =
+        `Last updated ${latest.date} • Change vs yesterday: ${delta} (${dir})`;
+
+      // Big number
+      document.getElementById("dial").textContent = latest.hi;
+
+      // Line chart
+      const labels = series.map(x=>x.date);
+      const values = series.map(x=>x.HI);
       const ctx = document.getElementById("chart");
       new Chart(ctx, {
         type: 'line',
-        data: {
-          labels: series.map(x=>x.date),
-          datasets: [{ label: "HI", data: series.map(x=>x.HI) }]
-        },
-        options: { scales: { y: { min:-100,max:100 } } }
+        data: { labels, datasets: [{ label: "HI", data: values, tension: 0.2 }] },
+        options: {
+          responsive: true,
+          animation: false,
+          scales: { y: { min: -100, max: 100 } },
+          plugins: { legend: { display: true }, tooltip: { enabled: true } }
+        }
       });
     }
     load();
   </script>
 </body>
-</html>
