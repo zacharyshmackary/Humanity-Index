@@ -1,16 +1,14 @@
 alpha: 0.8
 
-# Bias handling
-bias_threshold: 0.85       # dominance threshold for a single bias bin
-bias_lambda: 0.6           # smooth penalty strength (0..1, higher = stronger penalty)
+bias_threshold: 0.85
+bias_lambda: 0.6
 
-# Component weights (sum ~ 1.0)
 components:
   A: 0.40   # conflict/war/violence (−)
   B: 0.25   # cooperation/aid/peace (+)
   C: 0.15   # disasters/crises (−)
   D: 0.10   # civics/rights/rule-of-law (+)
-  E: 0.10   # science/medicine/“good news” (+)
+  E: 0.10   # science/medicine/innovation (+)
 
 cluster:
   cosine_threshold: 0.28
@@ -18,4 +16,4 @@ cluster:
 
 history:
   min_days_for_stats: 14
-  rolling_days: 0        # 0 = use all history; set to 90 later for rolling window
+  rolling_days: 0
