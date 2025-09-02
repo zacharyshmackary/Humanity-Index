@@ -5,7 +5,7 @@ import numpy as np
 
 def cluster_titles(items, threshold=0.28, max_clusters=150):
     """
-    items: list of dicts with {'title','url','domain','date'}
+    items: list of {'title','url','domain','date'}
     returns: list of clusters (each cluster is a list of those dicts)
     """
     if not items:
@@ -20,8 +20,7 @@ def cluster_titles(items, threshold=0.28, max_clusters=150):
     used = np.zeros(n, dtype=bool)
     clusters = []
 
-    order = np.arange(n)
-    for i in order:
+    for i in range(n):
         if used[i]:
             continue
         members = list(np.where(S[i] >= threshold)[0])
