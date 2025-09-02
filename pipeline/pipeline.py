@@ -5,10 +5,10 @@ import pandas as pd
 from collections import defaultdict
 from pathlib import Path
 
-from model import HIModel
-from gdelt_fetch import fetch_articles
-from categorize import categorize
-from cluster import cluster_titles
+from pipeline.model import HModel
+from pipeline.gdelt_fetch import fetch_articles
+from pipeline.categorize import categorize
+from pipeline.cluster import cluster_titles
 
 
 def build_clusters(articles):
